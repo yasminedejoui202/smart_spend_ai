@@ -14,8 +14,9 @@ import { categories, categoryStyles, incomeCategories, incomeCategoryStyles } fr
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend)
 
-function CategoryChart({ expenses, incomes }) {
+function CategoryChart({ analytics, expenses, incomes }) {
   const { formatter } = useCurrency()
+  const monthlyTrend = Array.isArray(analytics?.monthlyTrend) ? analytics.monthlyTrend : []
   const expenseTotals = categories.map((category) =>
     expenses
       .filter((expense) => expense.category === category)
@@ -49,6 +50,24 @@ function CategoryChart({ expenses, incomes }) {
       {
         data: [totalIncome, totalExpenses, totalIncome - totalExpenses],
         backgroundColor: ['#22c55e', '#6366f1', totalIncome >= totalExpenses ? '#14b8a6' : '#f43f5e'],
+        borderRadius: 14,
+      },
+    ],
+  }
+
+  const trendData = {
+    labels: monthlyTrend.map((month) => month.label),
+    datasets: [
+      {
+        label: 'Income',
+        data: monthlyTrend.map((month) => month.income),
+        backgroundColor: '#22c55e',
+        borderRadius: 14,
+      },
+      {
+        label: 'Expenses',
+        data: monthlyTrend.map((month) => month.expenses),
+        backgroundColor: '#6366f1',
         borderRadius: 14,
       },
     ],
@@ -121,11 +140,25 @@ function CategoryChart({ expenses, incomes }) {
       <div className="h-80">
         <Bar data={overviewData} options={barOptions} />
       </div>
+      {monthlyTrend.length > 0 && (
+        <div className="h-80 xl:col-span-2">
+          <Bar data={trendData} options={barOptions} />
+        </div>
+      )}
     </div>
   )
 }
 
 CategoryChart.propTypes = {
+  analytics: PropTypes.shape({
+    monthlyTrend: PropTypes.arrayOf(
+      PropTypes.shape({
+        expenses: PropTypes.number.isRequired,
+        income: PropTypes.number.isRequired,
+        label: PropTypes.string.isRequired,
+      }),
+    ),
+  }),
   expenses: PropTypes.arrayOf(
     PropTypes.shape({
       amount: PropTypes.number.isRequired,
@@ -138,6 +171,10 @@ CategoryChart.propTypes = {
       category: PropTypes.oneOf(Object.keys(incomeCategoryStyles)).isRequired,
     }),
   ).isRequired,
+}
+
+CategoryChart.defaultProps = {
+  analytics: { monthlyTrend: [] },
 }
 
 export default CategoryChart

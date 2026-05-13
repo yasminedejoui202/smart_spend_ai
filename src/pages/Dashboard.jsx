@@ -9,12 +9,24 @@ import { useExpenses } from '../context/useExpenses'
 import { categories, categoryStyles } from '../services/expenseData'
 
 function Dashboard() {
-  const { error, expenses, incomes, isLoading, refreshTransactions, totals } = useExpenses()
+  const {
+    analytics,
+    error,
+    expenses,
+    incomes,
+    insights,
+    isInsightsLoading,
+    isLoading,
+    refreshTransactions,
+    totals,
+  } = useExpenses()
   const { formatter } = useCurrency()
   const [view, setView] = useState('expense')
   const activeTransactions = view === 'expense' ? expenses : incomes
   const recentTransactions = activeTransactions.slice(0, 4)
   const hasTransactions = expenses.length > 0 || incomes.length > 0
+  const topInsights = insights.slice(0, 3)
+  const financialHealth = getFinancialHealth(analytics)
   const topCategory = expenses.length > 0 ? categories
     .map((category) => ({
       name: category,
@@ -76,6 +88,53 @@ function Dashboard() {
         />
       )}
 
+      <section className="page-shell">
+        <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-500">
+              AI summary
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">
+              Financial health overview
+            </h2>
+          </div>
+          <Link
+            to="/insights"
+            className="rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white transition hover:bg-indigo-600 dark:bg-white dark:text-slate-950"
+          >
+            Open AI Insights
+          </Link>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+          <div className={`rounded-3xl p-5 ${financialHealth.className}`}>
+            <p className="text-sm font-black uppercase tracking-[0.18em] opacity-75">Health status</p>
+            <p className="mt-3 text-2xl font-black">{financialHealth.icon} {financialHealth.label}</p>
+            <p className="mt-2 text-sm font-semibold opacity-80">
+              Monthly savings: {formatter.format(analytics.currentMonthSavings)} · Expenses trend: {analytics.expenseTrendPercent}%
+            </p>
+          </div>
+
+          <div className="grid gap-3">
+            {isInsightsLoading && (
+              <p className="rounded-3xl bg-indigo-50 p-4 text-sm font-bold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-200">
+                Generating AI insights from your latest MongoDB records...
+              </p>
+            )}
+
+            {!isInsightsLoading && topInsights.length === 0 && (
+              <p className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
+                Add more income and expense entries to unlock dashboard AI recommendations.
+              </p>
+            )}
+
+            {topInsights.map((insight) => (
+              <InsightSummary key={`${insight.title}-${insight.message}`} insight={insight} />
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="page-shell flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-500">
@@ -115,7 +174,7 @@ function Dashboard() {
               </h2>
             </div>
           </div>
-          <CategoryChart expenses={expenses} incomes={incomes} />
+          <CategoryChart expenses={expenses} incomes={incomes} analytics={analytics} />
         </div>
 
         <div className="page-shell">
@@ -218,6 +277,38 @@ function EmptyState({ message }) {
   )
 }
 
+function getFinancialHealth(analytics) {
+  if (analytics.currentMonthIncome <= 0 && analytics.currentMonthExpenses <= 0) {
+    return { icon: '🧭', label: 'Waiting for data', className: 'bg-slate-100 text-slate-700 dark:bg-slate-950 dark:text-slate-300' }
+  }
+
+  if (analytics.currentMonthSavings > 0 && analytics.currentMonthExpenses <= analytics.currentMonthIncome * 0.7) {
+    return { icon: '💚', label: 'Healthy', className: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200' }
+  }
+
+  if (analytics.currentMonthIncome > 0 && analytics.currentMonthExpenses >= analytics.currentMonthIncome * 0.9) {
+    return { icon: '⚠️', label: 'Watch spending', className: 'bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-100' }
+  }
+
+  return { icon: '📊', label: 'Stable', className: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-200' }
+}
+
+function InsightSummary({ insight }) {
+  const styles = {
+    positive: 'border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200',
+    warning: 'border-amber-100 bg-amber-50 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100',
+    neutral: 'border-indigo-100 bg-indigo-50 text-indigo-700 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-200',
+  }
+  const icons = { positive: '✅', warning: '⚠️', neutral: '💡' }
+
+  return (
+    <article className={`rounded-3xl border p-4 ${styles[insight.type] ?? styles.neutral}`}>
+      <p className="font-black">{icons[insight.type] ?? icons.neutral} {insight.title}</p>
+      <p className="mt-1 text-sm font-semibold opacity-80">{insight.message}</p>
+    </article>
+  )
+}
+
 StatCard.propTypes = {
   label: PropTypes.string.isRequired,
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
@@ -234,6 +325,14 @@ StatusBanner.propTypes = {
 
 EmptyState.propTypes = {
   message: PropTypes.string.isRequired,
+}
+
+InsightSummary.propTypes = {
+  insight: PropTypes.shape({
+    message: PropTypes.string.isRequired,
+    title: PropTypes.string.isRequired,
+    type: PropTypes.oneOf(['positive', 'warning', 'neutral']).isRequired,
+  }).isRequired,
 }
 
 export default Dashboard

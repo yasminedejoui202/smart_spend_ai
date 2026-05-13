@@ -5,9 +5,27 @@ import {
   addExpense as createExpense,
   addIncome as createIncome,
   getExpensesByUser,
+  getInsightsByUser,
   getIncomeByUser,
 } from '../services/api'
 import { useAuth } from './useAuth'
+
+const emptyAnalytics = {
+  totalIncome: 0,
+  totalExpenses: 0,
+  balance: 0,
+  currentMonthIncome: 0,
+  currentMonthExpenses: 0,
+  currentMonthSavings: 0,
+  previousMonthIncome: 0,
+  previousMonthExpenses: 0,
+  previousMonthSavings: 0,
+  expenseTrendPercent: 0,
+  savingsTrendPercent: 0,
+  topCategory: null,
+  categoryTotals: {},
+  monthlyTrend: [],
+}
 
 function normalizeTransaction(transaction) {
   if (!transaction) {
@@ -32,9 +50,35 @@ export function ExpenseProvider({ children }) {
   const { user } = useAuth()
   const [expenses, setExpenses] = useState([])
   const [incomes, setIncomes] = useState([])
+  const [insights, setInsights] = useState([])
+  const [analytics, setAnalytics] = useState(emptyAnalytics)
   const [isLoading, setIsLoading] = useState(false)
+  const [isInsightsLoading, setIsInsightsLoading] = useState(false)
   const [isMutating, setIsMutating] = useState(false)
   const [error, setError] = useState('')
+  const [insightsError, setInsightsError] = useState('')
+
+  const fetchUserInsights = useCallback(async () => {
+    if (!user?.email) {
+      setInsights([])
+      setAnalytics(emptyAnalytics)
+      return
+    }
+
+    setIsInsightsLoading(true)
+    setInsightsError('')
+
+    try {
+      const data = await getInsightsByUser(user.email)
+      setInsights(Array.isArray(data?.insights) ? data.insights : [])
+      setAnalytics({ ...emptyAnalytics, ...(data?.analytics || {}) })
+    } catch (fetchError) {
+      console.error('Failed to load AI insights:', fetchError)
+      setInsightsError(fetchError.message)
+    } finally {
+      setIsInsightsLoading(false)
+    }
+  }, [user?.email])
 
   const fetchUserTransactions = useCallback(async () => {
     if (!user?.email) {
@@ -66,6 +110,10 @@ export function ExpenseProvider({ children }) {
     fetchUserTransactions()
   }, [fetchUserTransactions])
 
+  useEffect(() => {
+    fetchUserInsights()
+  }, [fetchUserInsights])
+
   const addExpense = useCallback(async (expense) => {
     if (!user?.email) {
       throw new Error('You must be logged in to add an expense.')
@@ -84,6 +132,7 @@ export function ExpenseProvider({ children }) {
       const normalizedExpense = normalizeTransaction(data?.expense)
 
       setExpenses((currentExpenses) => [normalizedExpense, ...currentExpenses])
+      fetchUserInsights()
       return normalizedExpense
     } catch (mutationError) {
       console.error('Failed to add expense:', mutationError)
@@ -92,7 +141,7 @@ export function ExpenseProvider({ children }) {
     } finally {
       setIsMutating(false)
     }
-  }, [user?.email])
+  }, [fetchUserInsights, user?.email])
 
   const addIncome = useCallback(async (income) => {
     if (!user?.email) {
@@ -112,6 +161,7 @@ export function ExpenseProvider({ children }) {
       const normalizedIncome = normalizeTransaction(data?.income)
 
       setIncomes((currentIncomes) => [normalizedIncome, ...currentIncomes])
+      fetchUserInsights()
       return normalizedIncome
     } catch (mutationError) {
       console.error('Failed to add income:', mutationError)
@@ -120,7 +170,7 @@ export function ExpenseProvider({ children }) {
     } finally {
       setIsMutating(false)
     }
-  }, [user?.email])
+  }, [fetchUserInsights, user?.email])
 
   const totals = useMemo(() => {
     const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0)
@@ -141,16 +191,21 @@ export function ExpenseProvider({ children }) {
     () => ({
       expenses,
       incomes,
+      insights,
+      analytics,
       totals,
       isLoading,
+      isInsightsLoading,
       isMutating,
       error,
+      insightsError,
       addExpense,
       addIncome,
       refreshTransactions: fetchUserTransactions,
+      refreshInsights: fetchUserInsights,
       clearError,
     }),
-    [expenses, incomes, totals, isLoading, isMutating, error, addExpense, addIncome, fetchUserTransactions, clearError],
+    [expenses, incomes, insights, analytics, totals, isLoading, isInsightsLoading, isMutating, error, insightsError, addExpense, addIncome, fetchUserTransactions, fetchUserInsights, clearError],
   )
 
   return (

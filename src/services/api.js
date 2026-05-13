@@ -16,6 +16,10 @@ async function apiRequest(endpoint, options = {}) {
       : null
 
     if (!response.ok) {
+      if (response.status === 404 && endpoint.startsWith('/api/insights')) {
+        throw new Error('AI Insights API was not found. Restart the backend server so it loads the new /api/insights route, then try again.')
+      }
+
       throw new Error(data?.message || `Request failed with status ${response.status}`)
     }
 
@@ -60,4 +64,12 @@ export function addIncome(incomeData) {
 
 export function getIncomeByUser(email) {
   return apiRequest(`/api/income/${encodeURIComponent(email)}`)
+}
+
+export function getInsightsByUser(email) {
+  return apiRequest(`/api/insights/${encodeURIComponent(email)}`)
+}
+
+export function getApiHealth() {
+  return apiRequest('/api/health')
 }

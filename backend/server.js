@@ -6,6 +6,7 @@ const dotenv = require('dotenv')
 const authRoutes = require('./routes/authRoutes')
 const expenseRoutes = require('./routes/expenseRoutes')
 const incomeRoutes = require('./routes/incomeRoutes')
+const insightRoutes = require('./routes/insightRoutes')
 
 dotenv.config()
 
@@ -20,9 +21,26 @@ app.get('/', (req, res) => {
   res.json({ message: 'Expense Tracker API is running' })
 })
 
+app.get('/api/health', (req, res) => {
+  res.json({
+    message: 'Smart Spend AI API is running',
+    database: MONGODB_URI,
+    routes: [
+      'POST /api/auth/register',
+      'POST /api/auth/login',
+      'POST /api/expenses',
+      'GET /api/expenses/:email',
+      'POST /api/income',
+      'GET /api/income/:email',
+      'GET /api/insights/:email',
+    ],
+  })
+})
+
 app.use('/api/auth', authRoutes)
 app.use('/api/expenses', expenseRoutes)
 app.use('/api/income', incomeRoutes)
+app.use('/api/insights', insightRoutes)
 
 mongoose
   .connect(MONGODB_URI)
